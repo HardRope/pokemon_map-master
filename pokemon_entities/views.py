@@ -1,8 +1,6 @@
 import folium
 
-from django.http import HttpResponseNotFound
-from django.core.exceptions import ObjectDoesNotExist
-
+from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.utils.timezone import localtime
 
@@ -21,8 +19,7 @@ def check_active(pokemon_cords):
     appeared_at = pokemon_cords.appeared_at
     disappeared_at = pokemon_cords.disappeared_at
     now = localtime()
-    if appeared_at < now < disappeared_at:
-        return True
+    return appeared_at < now < disappeared_at
 
 
 def add_pokemon(folium_map, lat, lon, image_url=DEFAULT_IMAGE_URL):
@@ -39,12 +36,12 @@ def add_pokemon(folium_map, lat, lon, image_url=DEFAULT_IMAGE_URL):
 
 
 def show_all_pokemons(request):
-    pokemons_in_db = Pokemon.objects.all()
-    pokemons_cords = PokemonEntity.objects.all()
+    pokemons = Pokemon.objects.all()
+    pokemons_entities = PokemonEntity.objects.all()
 
     folium_map = folium.Map(location=MOSCOW_CENTER, zoom_start=12)
 
-    for cords in pokemons_cords:
+    for cords in pokemons_entities:
         if not check_active(cords):
             continue
 
@@ -58,7 +55,7 @@ def show_all_pokemons(request):
         )
 
     pokemons_on_page = []
-    for pokemon in pokemons_in_db:
+    for pokemon in pokemons:
         if pokemon.image:
             image_url = request.build_absolute_uri(pokemon.image.url)
         else:
@@ -79,10 +76,7 @@ def show_all_pokemons(request):
 
 
 def show_pokemon(request, pokemon_id):
-    try:
-        pokemon = Pokemon.objects.get(id=pokemon_id)
-    except ObjectDoesNotExist:
-        return HttpResponseNotFound('<h1>Такой покемон не найден</h1>')
+    pokemon = get_object_or_404(Pokemon, id=pokemon_id)
 
     requested_pokemon = {
         'id': pokemon.id,
@@ -90,7 +84,7 @@ def show_pokemon(request, pokemon_id):
         'title_en': pokemon.title_en,
         'title_jp': pokemon.title_jp,
         'img_url': request.build_absolute_uri(pokemon.image.url),
-        'entities': [{'lat': entity.lat, 'lon': entity.lon} for entity in pokemon.entity.all() if check_active(entity)],
+        'entities': [{'lat': entity.lat, 'lon': entity.lon} for entity in pokemon.entities.all() if check_active(entity)],
         'description': pokemon.description,
     }
 
@@ -102,8 +96,8 @@ def show_pokemon(request, pokemon_id):
             'img_url': request.build_absolute_uri(pokemon.previous_evolution.image.url)
         }
 
-    if pokemon.evolution.all():
-        next_generation = pokemon.evolution.get()
+    if pokemon.evolutions.all():
+        next_generation = pokemon.evolutions.get()
         requested_pokemon['next_evolution']={
             'title_ru': next_generation.title,
             'pokemon_id': next_generation.id,
